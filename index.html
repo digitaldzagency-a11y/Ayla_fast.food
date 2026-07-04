@@ -256,6 +256,24 @@
   .cart-line .nm{font-family:'Inter',sans-serif; font-weight:700;}
   .cart-empty{color:var(--ink); font-size:14px; padding:26px 0; font-family:'JetBrains Mono',monospace;}
   .cart-total-row{display:flex; justify-content:space-between; font-family:'Anton',sans-serif; font-size:22px; padding-top:18px;}
+
+  .cust-info{margin-top:22px; padding-top:18px; border-top:2px dashed var(--line); display:flex; flex-direction:column; gap:12px;}
+  .cust-heading{font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--ink);}
+  .cust-label{display:flex; flex-direction:column; gap:6px; font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700; color:var(--ink);}
+  .cust-input{
+    font-family:'Inter',sans-serif; font-size:15px; font-weight:600; color:var(--black);
+    border:2px solid var(--black); border-radius:10px; padding:11px 13px; background:var(--white);
+    outline-offset:2px;
+  }
+  .cust-input::placeholder{color:rgba(0,0,0,.35); font-weight:500;}
+  .cust-input:focus{border-color:var(--teal);}
+
+  .cart-line-right{display:flex; align-items:center; gap:10px;}
+  .del-btn{
+    width:24px; height:24px; border-radius:50%; border:2px solid var(--black); background:var(--white);
+    font-size:11px; font-weight:800; cursor:pointer; line-height:1; flex-shrink:0; font-family:'JetBrains Mono',monospace;
+  }
+  .del-btn:hover{background:var(--black); color:var(--white);}
   .close-sheet{position:absolute; top:16px; right:16px; background:var(--white); border:2px solid var(--black); border-radius:50%; width:36px; height:36px; font-weight:800; cursor:pointer; z-index:2;}
 
   .visually-hidden{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0);}
@@ -409,7 +427,21 @@
     <h3>Votre commande</h3>
     <div id="cartLines"><p class="cart-empty">// panier vide</p></div>
     <div class="cart-total-row"><span>Total</span><span id="cartTotalFull">0 DA</span></div>
-    <a class="btn btn-solid" style="width:100%; margin-top:20px;" id="checkoutBtn" href="#" target="_blank" rel="noopener">✅ Commander sur WhatsApp</a>
+
+    <div class="cust-info">
+      <span class="cust-heading">Vos coordonnées</span>
+      <label class="cust-label">Nom
+        <input type="text" id="custName" class="cust-input" placeholder="Votre nom" autocomplete="name">
+      </label>
+      <label class="cust-label">Téléphone
+        <input type="tel" id="custPhone" class="cust-input" placeholder="0X XX XX XX XX" autocomplete="tel">
+      </label>
+      <label class="cust-label" id="addressLabelWrap">Adresse de livraison
+        <input type="text" id="custAddress" class="cust-input" placeholder="Quartier, rue, repère...">
+      </label>
+    </div>
+
+    <a class="btn btn-solid" style="width:100%; margin-top:20px;" id="checkoutBtn" href="#" rel="noopener">✅ Commander sur WhatsApp</a>
   </div>
 </div>
 
@@ -527,6 +559,13 @@ function changeQty(id, category, delta){
   updateCartUI();
 }
 
+function removeItem(id, category){
+  delete cart[id];
+  const item = MENU[category].find(i=>i.id===id);
+  renderControl(item, category);
+  updateCartUI();
+}
+
 function updateCartUI(){
   const lines = Object.values(cart);
   const count = lines.reduce((s,l)=>s+l.qty,0);
@@ -540,23 +579,43 @@ function updateCartUI(){
   linesEl.innerHTML = lines.length ? lines.map(l=>`
     <div class="cart-line">
       <span class="nm">${l.item.name} x${l.qty}</span>
-      <span>${l.qty*l.item.price} DA</span>
+      <span class="cart-line-right">
+        <span>${l.qty*l.item.price} DA</span>
+        <button class="del-btn" onclick="removeItem('${l.item.id}','${l.category}')" aria-label="Supprimer ${l.item.name}">✕</button>
+      </span>
     </div>
   `).join('') : '<p class="cart-empty">// panier vide</p>';
   document.getElementById('cartTotalFull').textContent = total + ' DA';
 
-  document.getElementById('checkoutBtn').href = buildWhatsAppLink(lines, total);
   document.getElementById('ctaHero').href = `https://wa.me/${PHONE}?text=${encodeURIComponent("Bonjour Ayla Fast Food 👋\nJe voudrais passer une commande, pouvez-vous m'aider ?")}`;
 }
 
 function buildWhatsAppLink(lines, total){
+  const name = document.getElementById('custName').value.trim();
+  const phone = document.getElementById('custPhone').value.trim();
+  const address = document.getElementById('custAddress').value.trim();
+
   if(lines.length === 0){
     return `https://wa.me/${PHONE}?text=${encodeURIComponent("Bonjour Ayla Fast Food 👋\nJe voudrais passer une commande.")}`;
   }
   let msg = "Bonjour Ayla Fast Food 👋\nJe voudrais passer la commande suivante :\n\n";
   lines.forEach(l=>{ msg += `🍔 ${l.item.name} x${l.qty} — ${l.qty*l.item.price} DA\n`; });
   msg += `━━━━━━━━━━━━\n💰 Total : ${total} DA\n📍 ${orderMode}`;
+  if(name) msg += `\n👤 Nom : ${name}`;
+  if(phone) msg += `\n📞 Téléphone : ${phone}`;
+  if(orderMode === 'Livraison' && address) msg += `\n🏠 Adresse : ${address}`;
   return `https://wa.me/${PHONE}?text=${encodeURIComponent(msg)}`;
+}
+
+document.getElementById('checkoutBtn').addEventListener('click', (e)=>{
+  e.preventDefault();
+  const lines = Object.values(cart);
+  const total = lines.reduce((s,l)=>s+l.qty*l.item.price,0);
+  window.open(buildWhatsAppLink(lines, total), '_blank', 'noopener');
+});
+
+function toggleAddressField(){
+  document.getElementById('addressLabelWrap').style.display = orderMode === 'Livraison' ? 'flex' : 'none';
 }
 
 document.getElementById('orderModeToggle').addEventListener('click', (e)=>{
@@ -565,6 +624,7 @@ document.getElementById('orderModeToggle').addEventListener('click', (e)=>{
   document.querySelectorAll('#orderModeToggle button').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   orderMode = btn.dataset.mode;
+  toggleAddressField();
   updateCartUI();
 });
 
@@ -613,6 +673,7 @@ document.getElementById('year').textContent = new Date().getFullYear();
 
 renderTicker();
 renderMenu();
+toggleAddressField();
 updateCartUI();
 
 
